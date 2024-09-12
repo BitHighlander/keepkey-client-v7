@@ -1,6 +1,6 @@
 (function () {
   const TAG = ' | InjectedScript | ';
-  const VERSION = '1.0.8';
+  const VERSION = '1.0.10';
   console.log('**** KeepKey Injection script ****:', VERSION);
 
   // Prevent multiple injections
@@ -19,19 +19,76 @@
   };
   console.log('SOURCE_INFO:', SOURCE_INFO);
 
+  let accountsUnlocked = false; // Track if accounts have been requested
+
   function mockWalletRequest(method, params, chain, callback) {
     console.log(TAG, `Mocking wallet request: ${method}`, params, `on chain: ${chain}`);
     let mockResult = {};
     // Add mock results for common methods
     switch (method) {
+      case 'eth_requestAccounts':
+        accountsUnlocked = true;
+        mockResult = ['0x141D9959cAe3853b035000490C03991eB70Fc4aC']; // Mock address
+        break;
       case 'eth_accounts':
-        mockResult = ['0x123456789abcdef']; // Mock address
+        mockResult = accountsUnlocked ? ['0x141D9959cAe3853b035000490C03991eB70Fc4aC'] : [];
         break;
       case 'eth_chainId':
         mockResult = '0x1'; // Mainnet chain ID
         break;
       case 'eth_sendTransaction':
         mockResult = '0xmocktransactionhash'; // Mock transaction hash
+        break;
+      case 'eth_getBlockByNumber':
+        mockResult = {
+          number: '0x5f5e100', // Block number in hex
+          hash: '0xmockblockhash',
+          parentHash: '0xmockparenthash',
+          transactions: [],
+        }; // Mock block data
+        break;
+      case 'eth_blockNumber':
+        mockResult = '0x5f5e100'; // Mock block number in hex
+        break;
+      case 'eth_getBalance':
+        mockResult = '0xde0b6b3a7640000'; // Mock balance (1 ETH in wei)
+        break;
+      case 'eth_gasPrice':
+        mockResult = '0x3b9aca00'; // Mock gas price (1 Gwei)
+        break;
+      case 'eth_estimateGas':
+        mockResult = '0x5208'; // Mock gas estimate (21000)
+        break;
+      case 'eth_getTransactionByHash':
+        mockResult = {
+          hash: '0xmocktransactionhash',
+          blockNumber: '0x5f5e100',
+          from: '0x141D9959cAe3853b035000490C03991eB70Fc4aC',
+          to: '0xanothermockaddress',
+          value: '0xde0b6b3a7640000', // 1 ETH in wei
+          gas: '0x5208', // 21000 gas
+        }; // Mock transaction data
+        break;
+      case 'eth_getTransactionReceipt':
+        mockResult = {
+          transactionHash: '0xmocktransactionhash',
+          blockNumber: '0x5f5e100',
+          status: '0x1', // Success
+          logs: [],
+        }; // Mock transaction receipt
+        break;
+      case 'wallet_addEthereumChain':
+        mockResult = true; // Assume chain is added
+        break;
+      case 'wallet_switchEthereumChain':
+        mockResult = true; // Assume chain is switched
+        break;
+      case 'wallet_getPermissions':
+      case 'wallet_requestPermissions':
+        mockResult = [{ parentCapability: 'eth_accounts' }]; // Mock permissions
+        break;
+      case 'wallet_watchAsset':
+        mockResult = true; // Mock asset addition
         break;
       default:
         mockResult = 'Mock result for ' + method;
@@ -68,8 +125,8 @@
           payload.chain = chain;
         }
         return callback
-            ? mockWalletRequest(payload.method, payload.params, chain, callback)
-            : mockWalletRequest(payload.method, payload.params, chain, () => {});
+          ? mockWalletRequest(payload.method, payload.params, chain, callback)
+          : mockWalletRequest(payload.method, payload.params, chain, () => {});
       },
       sendAsync: (payload, param1, callback) => {
         console.log('sendAsync:', { payload, param1, callback });
